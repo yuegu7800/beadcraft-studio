@@ -1,6 +1,7 @@
 import { canvasPointToCell, renderPattern, DEFAULT_RENDER_OPTIONS, type RenderMetrics, type RenderOptions } from '../canvas/renderer';
 import { GridHistory, replaceColor } from '../core/editor';
 import { createCsvExport, createPngExport, createProjectJson, createSvgExport, parseProjectJson } from '../canvas/export';
+import { createPreviewGrid, LocalPreviewProvider, type PreviewKind } from '../canvas/preview';
 import { decodeImageFile, rasterizeImage, type DecodedImage } from '../core/image';
 import { DEMO_PALETTE, parsePaletteCsv } from '../core/palette';
 import { countBeads, createPattern, getPatternStats } from '../core/pattern';
@@ -39,6 +40,7 @@ const template = `
     <aside class="panel stats-panel"><div class="panel-heading"><h2>用豆清单</h2><select id="stats-sort" aria-label="清单排序"><option value="count">按数量</option><option value="code">按色号</option></select></div><div class="metrics" id="metrics"><div><span>图纸</span><strong>0 × 0</strong></div><div><span>豆子</span><strong>0</strong></div><div><span>颜色</span><strong>0</strong></div></div><div class="empty-stats" id="empty-stats">生成图纸后，这里会精确统计每种颜色。</div><div class="stat-list" id="stat-list"></div><button class="button button-wide button-ghost" id="replace-color" type="button" hidden>替换高亮颜色</button><button class="button button-wide button-ghost" id="preview-button" type="button" disabled>查看产品预览</button></aside>
   </main>
   <dialog class="export-dialog" id="export-dialog"><form method="dialog"><div class="dialog-heading"><div><h2>导出图纸</h2><p>选择需要的格式，文件会直接保存到本机。</p></div><button class="dialog-close" value="cancel" aria-label="关闭">×</button></div><div class="export-grid"><button type="button" data-export="png"><strong>PNG</strong><span>高清图纸，含坐标与用量</span></button><button type="button" data-export="svg"><strong>SVG</strong><span>可无限放大的矢量图纸</span></button><button type="button" data-export="csv"><strong>CSV</strong><span>色号、颜色与精确数量</span></button><button type="button" data-export="json"><strong>JSON</strong><span>保存工程，稍后继续编辑</span></button></div></form></dialog>
+  <dialog class="preview-dialog" id="preview-dialog"><div class="dialog-heading"><div><h2>同一图案，四种做法</h2><p>预览由当前 grid 本地合成，主体颜色和形状保持一致。</p></div><button class="dialog-close" id="preview-close" aria-label="关闭">×</button></div><div class="preview-grid"><figure><canvas data-preview="finished"></canvas><figcaption>拼豆成品</figcaption></figure><figure><canvas data-preview="keychain"></canvas><figcaption>钥匙扣</figcaption></figure><figure><canvas data-preview="magnet"></canvas><figcaption>冰箱贴</figcaption></figure><figure><canvas data-preview="standee"></canvas><figcaption>桌面立牌</figcaption></figure></div><button class="button button-primary preview-download" id="download-previews" type="button">下载四宫格 PNG</button></dialog>
   <div class="toast" id="toast" role="status" aria-live="polite" hidden></div>`;
 
 const DEFAULT_SETTINGS: PatternSettings = { longEdge: 48, maxColors: 12, fit: 'contain', background: 'keep', backgroundColor: '#FFFFFF', process: 'original' };
@@ -57,6 +59,7 @@ export class BeadCraftApp {
   private history = new GridHistory();
   private tool: ToolMode = 'paint';
   private selectedCode = DEMO_PALETTE.colors[0]!.code;
+  private previewProvider = new LocalPreviewProvider();
 
   constructor(private root: HTMLElement) { root.innerHTML = template; this.renderPalettePicker(); this.bindEvents(); }
   private element<T extends HTMLElement>(selector: string): T { const found = this.root.querySelector<T>(selector); if (!found) throw new Error(`缺少界面元素：${selector}`); return found; }
@@ -85,6 +88,9 @@ export class BeadCraftApp {
     this.element<HTMLButtonElement>('#undo').addEventListener('click', () => this.undo());
     this.element<HTMLButtonElement>('#redo').addEventListener('click', () => this.redo());
     this.element<HTMLButtonElement>('#replace-color').addEventListener('click', () => this.replaceHighlighted());
+    this.element<HTMLButtonElement>('#preview-button').addEventListener('click', () => this.openPreviews());
+    this.element<HTMLButtonElement>('#preview-close').addEventListener('click', () => this.element<HTMLDialogElement>('#preview-dialog').close());
+    this.element<HTMLButtonElement>('#download-previews').addEventListener('click', () => this.downloadPreviewGrid());
     this.element<HTMLButtonElement>('#export-button').addEventListener('click', () => this.element<HTMLDialogElement>('#export-dialog').showModal());
     this.root.querySelectorAll<HTMLButtonElement>('[data-export]').forEach((button) => button.addEventListener('click', () => this.exportFile(button.dataset.export!)));
     const projectInput = this.element<HTMLInputElement>('#project-input');
@@ -186,6 +192,8 @@ export class BeadCraftApp {
     } catch (error) { this.showError(error); }
   }
   private syncSettingsInputs(): void { this.element<HTMLInputElement>('#long-edge').value = String(this.settings.longEdge); this.element<HTMLOutputElement>('#long-edge-value').value = String(this.settings.longEdge); this.element<HTMLSelectElement>('#max-colors').value = this.settings.maxColors === null ? 'all' : String(this.settings.maxColors); this.element<HTMLSelectElement>('#fit').value = this.settings.fit; this.element<HTMLSelectElement>('#process').value = this.settings.process; this.element<HTMLSelectElement>('#background').value = this.settings.background; this.element<HTMLInputElement>('#background-color').value = this.settings.backgroundColor; this.element<HTMLElement>('#background-color-field').hidden = this.settings.background !== 'custom'; }
+  private openPreviews(): void { if (!this.pattern) return; this.root.querySelectorAll<HTMLCanvasElement>('[data-preview]').forEach((canvas) => this.previewProvider.render(canvas, this.pattern!, this.palette, canvas.dataset.preview as PreviewKind)); this.element<HTMLDialogElement>('#preview-dialog').showModal(); }
+  private downloadPreviewGrid(): void { if (!this.pattern) return; createPreviewGrid(this.pattern, this.palette, this.previewProvider).toBlob((blob) => { if (blob) this.download(blob, `beadcraft-${this.pattern!.width}x${this.pattern!.height}-previews.png`); }, 'image/png'); this.showToast('产品预览四宫格已导出'); }
   private resetSettings(): void { this.settings = { ...DEFAULT_SETTINGS }; this.element<HTMLInputElement>('#long-edge').value = '48'; this.element<HTMLOutputElement>('#long-edge-value').value = '48'; this.element<HTMLSelectElement>('#max-colors').value = '12'; this.element<HTMLSelectElement>('#fit').value = 'contain'; this.element<HTMLSelectElement>('#process').value = 'original'; this.element<HTMLSelectElement>('#background').value = 'keep'; this.element<HTMLElement>('#background-color-field').hidden = true; this.scheduleProcess(); }
   private newProject(): void { this.decoded?.dispose(); this.decoded = null; this.pattern = null; this.metrics = null; this.sourceFileName = ''; this.history.reset(); this.renderOptions.highlightCode = null; this.element<HTMLCanvasElement>('#pattern-canvas').hidden = true; this.element<HTMLCanvasElement>('#source-canvas').hidden = true; this.element<HTMLElement>('#empty-canvas').hidden = false; this.element<HTMLElement>('#empty-stats').hidden = false; this.element<HTMLElement>('#stat-list').innerHTML = ''; this.element<HTMLElement>('#status-text').textContent = '等待图片'; this.enableProjectActions(false); this.updateHistoryButtons(); }
   private showError(error: unknown): void { this.showToast(error instanceof Error ? error.message : '处理失败，请换一张图片重试'); }
