@@ -59,6 +59,13 @@ input[type="color"] { padding: 4px; }
 .palette-row div { min-width: 0; display: grid; gap: 3px; }
 .palette-row strong { font-size: 11px; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
 .palette-row span { color: var(--muted); font-size: 9px; line-height: 1.4; }
+.color-picker { margin-top: 15px; }
+.color-picker-label { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; margin-bottom: 8px; font-size: 10px; color: var(--muted); }
+.color-picker-label strong { color: inherit; font-size: 10px; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.palette-swatches { display: grid; grid-template-columns: repeat(8, 1fr); gap: 5px; }
+.palette-swatch { aspect-ratio: 1; width: 100%; min-width: 0; border: 1px solid rgb(35 38 42 / .14); border-radius: 7px; box-shadow: inset 0 0 0 0 transparent; transition: transform 150ms ease, box-shadow 150ms ease; }
+.palette-swatch:hover { transform: translateY(-1px); }
+.palette-swatch.selected { box-shadow: inset 0 0 0 2px var(--surface-raised), 0 0 0 2px var(--accent-strong); }
 .canvas-column { min-width: 0; min-height: 0; display: grid; grid-template-rows: 48px 44px 1fr; background: var(--surface); }
 .canvas-toolbar, .tool-strip { min-width: 0; display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 0 16px; background: var(--surface-raised); border-bottom: 1px solid var(--line); }
 .segmented { display: flex; padding: 3px; border-radius: 10px; background: var(--surface-deep); }
