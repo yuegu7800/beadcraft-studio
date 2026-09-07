@@ -1,7 +1,7 @@
 # Tasks
 
 - [x] Phase 0：参考分析、状态文件、Vite + TypeScript、基础页面
-- [ ] Phase 1：图片上传、比例保持、Contain/Cover、Canvas 像素化
+- [x] Phase 1：图片上传、比例保持、Contain/Cover、Canvas 像素化
 - [ ] Phase 2：LAB、CIEDE2000、palette、量化、统计与测试
 - [ ] Phase 3：网格、坐标、色号、图例、缩放
 - [ ] Phase 4：改色、擦除、吸色、Undo/Redo、高亮
