@@ -1,5 +1,6 @@
 import { canvasPointToCell, renderPattern, DEFAULT_RENDER_OPTIONS, type RenderMetrics, type RenderOptions } from '../canvas/renderer';
 import { GridHistory, replaceColor } from '../core/editor';
+import { createCsvExport, createPngExport, createProjectJson, createSvgExport, parseProjectJson } from '../canvas/export';
 import { decodeImageFile, rasterizeImage, type DecodedImage } from '../core/image';
 import { DEMO_PALETTE, parsePaletteCsv } from '../core/palette';
 import { countBeads, createPattern, getPatternStats } from '../core/pattern';
@@ -36,7 +37,9 @@ const template = `
       <div class="canvas-stage" id="canvas-stage"><div class="empty-canvas" id="empty-canvas"><div class="sample-beads" aria-hidden="true">${Array.from({ length: 36 }, (_, i) => `<i style="--i:${i}"></i>`).join('')}</div><h2>从一张喜欢的图片开始</h2><p>拖入图片，几秒内得到可编辑图纸。</p><label class="button button-primary empty-cta" for="image-input">选择图片</label></div><div class="loading-state" id="loading-state" hidden><div class="loading-grid"></div><strong>正在匹配拼豆颜色</strong></div><canvas id="pattern-canvas" hidden></canvas><canvas id="source-canvas" hidden></canvas><div class="cell-tooltip" id="cell-tooltip" hidden></div></div>
     </section>
     <aside class="panel stats-panel"><div class="panel-heading"><h2>用豆清单</h2><select id="stats-sort" aria-label="清单排序"><option value="count">按数量</option><option value="code">按色号</option></select></div><div class="metrics" id="metrics"><div><span>图纸</span><strong>0 × 0</strong></div><div><span>豆子</span><strong>0</strong></div><div><span>颜色</span><strong>0</strong></div></div><div class="empty-stats" id="empty-stats">生成图纸后，这里会精确统计每种颜色。</div><div class="stat-list" id="stat-list"></div><button class="button button-wide button-ghost" id="replace-color" type="button" hidden>替换高亮颜色</button><button class="button button-wide button-ghost" id="preview-button" type="button" disabled>查看产品预览</button></aside>
-  </main><div class="toast" id="toast" role="status" aria-live="polite" hidden></div>`;
+  </main>
+  <dialog class="export-dialog" id="export-dialog"><form method="dialog"><div class="dialog-heading"><div><h2>导出图纸</h2><p>选择需要的格式，文件会直接保存到本机。</p></div><button class="dialog-close" value="cancel" aria-label="关闭">×</button></div><div class="export-grid"><button type="button" data-export="png"><strong>PNG</strong><span>高清图纸，含坐标与用量</span></button><button type="button" data-export="svg"><strong>SVG</strong><span>可无限放大的矢量图纸</span></button><button type="button" data-export="csv"><strong>CSV</strong><span>色号、颜色与精确数量</span></button><button type="button" data-export="json"><strong>JSON</strong><span>保存工程，稍后继续编辑</span></button></div></form></dialog>
+  <div class="toast" id="toast" role="status" aria-live="polite" hidden></div>`;
 
 const DEFAULT_SETTINGS: PatternSettings = { longEdge: 48, maxColors: 12, fit: 'contain', background: 'keep', backgroundColor: '#FFFFFF', process: 'original' };
 
@@ -82,6 +85,10 @@ export class BeadCraftApp {
     this.element<HTMLButtonElement>('#undo').addEventListener('click', () => this.undo());
     this.element<HTMLButtonElement>('#redo').addEventListener('click', () => this.redo());
     this.element<HTMLButtonElement>('#replace-color').addEventListener('click', () => this.replaceHighlighted());
+    this.element<HTMLButtonElement>('#export-button').addEventListener('click', () => this.element<HTMLDialogElement>('#export-dialog').showModal());
+    this.root.querySelectorAll<HTMLButtonElement>('[data-export]').forEach((button) => button.addEventListener('click', () => this.exportFile(button.dataset.export!)));
+    const projectInput = this.element<HTMLInputElement>('#project-input');
+    projectInput.addEventListener('change', async () => { const file = projectInput.files?.[0]; if (file) await this.importProject(file); projectInput.value = ''; });
     const patternCanvas = this.element<HTMLCanvasElement>('#pattern-canvas');
     patternCanvas.addEventListener('pointerdown', (event) => this.editCell(event));
     patternCanvas.addEventListener('pointermove', (event) => this.showCellTooltip(event));
@@ -160,6 +167,25 @@ export class BeadCraftApp {
   private redo(): void { if (!this.pattern) return; const cells = this.history.redo(this.pattern.cells); if (!cells) return; this.pattern.cells = cells; this.updateHistoryButtons(); this.render(); }
   private updateHistoryButtons(): void { this.element<HTMLButtonElement>('#undo').disabled = !this.history.canUndo; this.element<HTMLButtonElement>('#redo').disabled = !this.history.canRedo; }
   private replaceHighlighted(): void { if (!this.pattern || !this.renderOptions.highlightCode || this.renderOptions.highlightCode === this.selectedCode) return; this.history.push(this.pattern.cells); this.pattern.cells = replaceColor(this.pattern.cells, this.renderOptions.highlightCode, this.selectedCode); this.renderOptions.highlightCode = null; this.updateHistoryButtons(); this.render(); this.showToast(`已批量替换为 ${this.selectedCode}`); }
+  private exportFile(kind: string): void {
+    if (!this.pattern) return;
+    const name = `beadcraft-${this.pattern.width}x${this.pattern.height}`;
+    if (kind === 'png') { createPngExport(this.pattern, this.palette).toBlob((blob) => { if (blob) this.download(blob, `${name}.png`); }, 'image/png'); }
+    if (kind === 'svg') this.download(new Blob([createSvgExport(this.pattern, this.palette)], { type: 'image/svg+xml;charset=utf-8' }), `${name}.svg`);
+    if (kind === 'csv') this.download(new Blob([createCsvExport(this.pattern, this.palette)], { type: 'text/csv;charset=utf-8' }), `${name}-materials.csv`);
+    if (kind === 'json') this.download(new Blob([createProjectJson(this.pattern, this.palette)], { type: 'application/json;charset=utf-8' }), `${name}.json`);
+    this.element<HTMLDialogElement>('#export-dialog').close();
+    this.showToast(`${kind.toUpperCase()} 已导出`);
+  }
+  private download(blob: Blob, filename: string): void { const url = URL.createObjectURL(blob); const link = document.createElement('a'); link.href = url; link.download = filename; link.click(); window.setTimeout(() => URL.revokeObjectURL(url), 1000); }
+  private async importProject(file: File): Promise<void> {
+    try {
+      const project = parseProjectJson(await file.text());
+      this.decoded?.dispose(); this.decoded = null; this.sourceFileName = file.name; this.palette = project.palette; this.pattern = project.pattern; this.settings = { ...project.pattern.settings }; this.selectedCode = this.palette.colors[0]!.code; this.history.reset(); this.renderOptions.highlightCode = null;
+      this.syncSettingsInputs(); this.renderPaletteInfo(); this.renderPalettePicker(); this.setBusy(false); this.setView('pattern'); this.enableProjectActions(true); this.updateHistoryButtons(); this.element<HTMLElement>('#status-text').textContent = `${file.name} 已导入`; this.render(); this.showToast('工程已恢复，可以继续编辑');
+    } catch (error) { this.showError(error); }
+  }
+  private syncSettingsInputs(): void { this.element<HTMLInputElement>('#long-edge').value = String(this.settings.longEdge); this.element<HTMLOutputElement>('#long-edge-value').value = String(this.settings.longEdge); this.element<HTMLSelectElement>('#max-colors').value = this.settings.maxColors === null ? 'all' : String(this.settings.maxColors); this.element<HTMLSelectElement>('#fit').value = this.settings.fit; this.element<HTMLSelectElement>('#process').value = this.settings.process; this.element<HTMLSelectElement>('#background').value = this.settings.background; this.element<HTMLInputElement>('#background-color').value = this.settings.backgroundColor; this.element<HTMLElement>('#background-color-field').hidden = this.settings.background !== 'custom'; }
   private resetSettings(): void { this.settings = { ...DEFAULT_SETTINGS }; this.element<HTMLInputElement>('#long-edge').value = '48'; this.element<HTMLOutputElement>('#long-edge-value').value = '48'; this.element<HTMLSelectElement>('#max-colors').value = '12'; this.element<HTMLSelectElement>('#fit').value = 'contain'; this.element<HTMLSelectElement>('#process').value = 'original'; this.element<HTMLSelectElement>('#background').value = 'keep'; this.element<HTMLElement>('#background-color-field').hidden = true; this.scheduleProcess(); }
   private newProject(): void { this.decoded?.dispose(); this.decoded = null; this.pattern = null; this.metrics = null; this.sourceFileName = ''; this.history.reset(); this.renderOptions.highlightCode = null; this.element<HTMLCanvasElement>('#pattern-canvas').hidden = true; this.element<HTMLCanvasElement>('#source-canvas').hidden = true; this.element<HTMLElement>('#empty-canvas').hidden = false; this.element<HTMLElement>('#empty-stats').hidden = false; this.element<HTMLElement>('#stat-list').innerHTML = ''; this.element<HTMLElement>('#status-text').textContent = '等待图片'; this.enableProjectActions(false); this.updateHistoryButtons(); }
   private showError(error: unknown): void { this.showToast(error instanceof Error ? error.message : '处理失败，请换一张图片重试'); }
