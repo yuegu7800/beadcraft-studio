@@ -4,6 +4,10 @@
 
 在线使用：[https://yuegu7800.github.io/beadcraft-studio/](https://yuegu7800.github.io/beadcraft-studio/)
 
+微信扫码使用：
+
+<img src="public/beadcraft-studio-qr.png" alt="BeadCraft Studio 网站二维码" width="240">
+
 ![BeadCraft Studio 界面预览](docs/screenshot.png)
 
 ## 功能
@@ -45,7 +49,7 @@ npm run dev
 
 浏览器打开终端显示的本地地址。
 
-Windows 用户也可以双击桌面的 `BeadCraft Studio` 快捷方式。快捷方式调用 `launch-beadcraft.ps1`，在后台启动本地预览服务并打开浏览器。
+Windows 用户也可以双击桌面的 `BeadCraft Studio` 快捷方式，直接打开线上网站，不依赖本地服务。开发者需要本地预览时仍可运行 `launch-beadcraft.ps1`。
 
 ## 构建与测试
 

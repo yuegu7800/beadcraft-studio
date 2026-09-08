@@ -4,7 +4,10 @@
 
 - 仓库：https://github.com/yuegu7800/beadcraft-studio
 - 网站：https://yuegu7800.github.io/beadcraft-studio/
+- 二维码：`public/beadcraft-studio-qr.png`
 - 部署方式：GitHub Actions + GitHub Pages
+
+桌面的 `BeadCraft Studio` 快捷方式应直接打开线上网站，不需要启动本地 Node.js 服务。
 
 ## 推送后续更新
 
