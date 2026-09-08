@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { applyProcess, hexToRgba } from '../src/core/image';
+import { applyProcess, hexToRgba, sharpenRgbaPixels } from '../src/core/image';
 import { calculateDrawRect, calculateGridSize, clampLongEdge } from '../src/core/resize';
 
 describe('image sizing', () => {
@@ -31,5 +31,23 @@ describe('pixel processing', () => {
     const pixel = applyProcess({ r: 140, g: 90, b: 200, a: 255 }, 'cartoon');
     expect(pixel.a).toBe(255);
     expect(pixel.r % 42.5).toBe(0);
+  });
+
+  it('sharpens local edges without changing alpha', () => {
+    const pixels = new Uint8ClampedArray(3 * 3 * 4);
+    for (let index = 0; index < pixels.length; index += 4) {
+      pixels[index] = 100;
+      pixels[index + 1] = 100;
+      pixels[index + 2] = 100;
+      pixels[index + 3] = 255;
+    }
+    const center = (1 * 3 + 1) * 4;
+    pixels[center] = 140;
+    pixels[center + 1] = 140;
+    pixels[center + 2] = 140;
+
+    const sharpened = sharpenRgbaPixels(pixels, 3, 3);
+    expect(sharpened[center]).toBeGreaterThan(140);
+    expect(sharpened[center + 3]).toBe(255);
   });
 });

@@ -39,12 +39,32 @@ export function applyProcess(pixel: RGBA, mode: ProcessMode): RGBA {
   if (mode === 'soft') {
     return { ...pixel, r: pixel.r * .86 + 24, g: pixel.g * .86 + 24, b: pixel.b * .86 + 24 };
   }
-  const amount = mode === 'contrast' ? 1.2 : 1.45;
+  const amount = mode === 'sharp' ? 1.08 : mode === 'contrast' ? 1.2 : 1.45;
   const channel = (value: number) => Math.max(0, Math.min(255, (value - 128) * amount + 128));
   const adjusted = { ...pixel, r: channel(pixel.r), g: channel(pixel.g), b: channel(pixel.b) };
   if (mode !== 'cartoon') return adjusted;
   const posterize = (value: number) => Math.round(value / 42.5) * 42.5;
   return { ...adjusted, r: posterize(adjusted.r), g: posterize(adjusted.g), b: posterize(adjusted.b) };
+}
+
+export function sharpenRgbaPixels(source: Uint8ClampedArray, width: number, height: number, amount = .28): Uint8ClampedArray {
+  const output = new Uint8ClampedArray(source);
+  if (width < 2 || height < 2 || amount <= 0) return output;
+
+  const indexAt = (x: number, y: number) => (Math.max(0, Math.min(height - 1, y)) * width + Math.max(0, Math.min(width - 1, x))) * 4;
+  for (let y = 0; y < height; y += 1) {
+    for (let x = 0; x < width; x += 1) {
+      const center = indexAt(x, y);
+      if (source[center + 3]! < 8) continue;
+      const neighbors = [indexAt(x - 1, y), indexAt(x + 1, y), indexAt(x, y - 1), indexAt(x, y + 1)];
+      for (let channel = 0; channel < 3; channel += 1) {
+        const centerValue = source[center + channel]!;
+        const neighborSum = neighbors.reduce((sum, index) => sum + (source[index + 3]! < 8 ? centerValue : source[index + channel]!), 0);
+        output[center + channel] = Math.round(centerValue * (1 + amount * 4) - neighborSum * amount);
+      }
+    }
+  }
+  return output;
 }
 
 export function rasterizeImage(
@@ -80,5 +100,6 @@ export function rasterizeImage(
     data.data[i + 2] = next.b;
     if (background === 'transparent' && next.a < 245) data.data[i + 3] = 0;
   }
+  if (process === 'sharp') data.data.set(sharpenRgbaPixels(data.data, width, height));
   return data;
 }

@@ -1,6 +1,6 @@
 export type FitMode = 'contain' | 'cover';
 export type BackgroundMode = 'keep' | 'transparent' | 'white' | 'custom';
-export type ProcessMode = 'original' | 'contrast' | 'soft' | 'cartoon';
+export type ProcessMode = 'original' | 'sharp' | 'contrast' | 'soft' | 'cartoon';
 export type ToolMode = 'paint' | 'erase' | 'picker';
 
 export interface RGB {

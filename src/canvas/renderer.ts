@@ -27,18 +27,32 @@ export const DEFAULT_RENDER_OPTIONS: RenderOptions = {
   zoom: 1,
 };
 
+export function calculateCanvasBackingScale(
+  logicalWidth: number,
+  logicalHeight: number,
+  zoom: number,
+  devicePixelRatio: number,
+  maxDimension = 8192,
+): number {
+  const safeZoom = Math.max(.25, zoom);
+  const safeDpr = Math.max(1, devicePixelRatio || 1);
+  const requestedScale = Math.min(4, safeZoom * safeDpr);
+  const dimensionLimit = maxDimension / Math.max(1, logicalWidth, logicalHeight);
+  return Math.max(.25, Math.min(requestedScale, dimensionLimit));
+}
+
 export function renderPattern(canvas: HTMLCanvasElement, pattern: BeadPattern, palette: Palette, options: RenderOptions): RenderMetrics {
   const gutter = options.showCoordinates ? 32 : 10;
   const logicalWidth = pattern.width * options.cellSize + gutter * 2;
   const logicalHeight = pattern.height * options.cellSize + gutter * 2;
-  const dpr = Math.min(window.devicePixelRatio || 1, 2);
-  canvas.width = Math.round(logicalWidth * dpr);
-  canvas.height = Math.round(logicalHeight * dpr);
+  const backingScale = calculateCanvasBackingScale(logicalWidth, logicalHeight, options.zoom, window.devicePixelRatio || 1);
+  canvas.width = Math.max(1, Math.round(logicalWidth * backingScale));
+  canvas.height = Math.max(1, Math.round(logicalHeight * backingScale));
   canvas.style.width = `${Math.round(logicalWidth * options.zoom)}px`;
   canvas.style.height = `${Math.round(logicalHeight * options.zoom)}px`;
   const ctx = canvas.getContext('2d');
   if (!ctx) throw new Error('无法创建画布');
-  ctx.scale(dpr, dpr);
+  ctx.setTransform(canvas.width / logicalWidth, 0, 0, canvas.height / logicalHeight, 0, 0);
   ctx.fillStyle = '#F8F8F6';
   ctx.fillRect(0, 0, logicalWidth, logicalHeight);
 

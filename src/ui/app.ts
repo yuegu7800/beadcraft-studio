@@ -1,4 +1,4 @@
-import { canvasPointToCell, renderPattern, DEFAULT_RENDER_OPTIONS, type RenderMetrics, type RenderOptions } from '../canvas/renderer';
+import { calculateCanvasBackingScale, canvasPointToCell, renderPattern, DEFAULT_RENDER_OPTIONS, type RenderMetrics, type RenderOptions } from '../canvas/renderer';
 import { GridHistory, replaceColor } from '../core/editor';
 import { createCsvExport, createPngExport, createProjectJson, createSvgExport, parseProjectJson } from '../canvas/export';
 import { createPreviewGrid, LocalPreviewProvider, type PreviewKind } from '../canvas/preview';
@@ -24,7 +24,7 @@ const template = `
         <div class="field-grid">
           <label class="field"><span>最多颜色</span><select id="max-colors"><option value="6">6 色</option><option value="8">8 色</option><option value="12" selected>12 色</option><option value="16">16 色</option><option value="18">18 色</option><option value="24">24 色</option><option value="all">不限</option></select></label>
           <label class="field"><span>图片适配</span><select id="fit"><option value="contain">完整保留</option><option value="cover">铺满裁边</option></select></label>
-          <label class="field"><span>处理方式</span><select id="process"><option value="original">原始</option><option value="contrast">增强对比</option><option value="soft">柔和</option><option value="cartoon">卡通近似</option></select></label>
+          <label class="field"><span>处理方式</span><select id="process"><option value="sharp" selected>清晰轮廓（推荐）</option><option value="original">原始</option><option value="contrast">增强对比</option><option value="soft">柔和</option><option value="cartoon">卡通近似</option></select></label>
           <label class="field"><span>背景</span><select id="background"><option value="keep">保留</option><option value="transparent">透明</option><option value="white">白色</option><option value="custom">自定义</option></select></label>
         </div>
         <label class="field color-field" id="background-color-field" hidden><span>背景颜色</span><input id="background-color" type="color" value="#FFFFFF"></label>
@@ -41,10 +41,10 @@ const template = `
   </main>
   <dialog class="export-dialog" id="export-dialog"><form method="dialog"><div class="dialog-heading"><div><h2>导出图纸</h2><p>选择需要的格式，文件会直接保存到本机。</p></div><button class="dialog-close" value="cancel" aria-label="关闭">×</button></div><div class="export-grid"><button type="button" data-export="png"><strong>PNG</strong><span>高清图纸，含坐标与用量</span></button><button type="button" data-export="svg"><strong>SVG</strong><span>可无限放大的矢量图纸</span></button><button type="button" data-export="csv"><strong>CSV</strong><span>色号、颜色与精确数量</span></button><button type="button" data-export="json"><strong>JSON</strong><span>保存工程，稍后继续编辑</span></button></div></form></dialog>
   <dialog class="preview-dialog" id="preview-dialog"><div class="dialog-heading"><div><h2>同一图案，四种做法</h2><p>预览由当前 grid 本地合成，主体颜色和形状保持一致。</p></div><button class="dialog-close" id="preview-close" aria-label="关闭">×</button></div><div class="preview-grid"><figure><canvas data-preview="finished"></canvas><figcaption>拼豆成品</figcaption></figure><figure><canvas data-preview="keychain"></canvas><figcaption>钥匙扣</figcaption></figure><figure><canvas data-preview="magnet"></canvas><figcaption>冰箱贴</figcaption></figure><figure><canvas data-preview="standee"></canvas><figcaption>桌面立牌</figcaption></figure></div><button class="button button-primary preview-download" id="download-previews" type="button">下载四宫格 PNG</button></dialog>
-  <dialog class="help-dialog" id="help-dialog"><form method="dialog"><div class="dialog-heading"><div><h2>三分钟做出第一张图纸</h2><p>不需要注册，也不会上传你的图片。</p></div><button class="dialog-close" value="cancel" aria-label="关闭">×</button></div><ol class="help-steps"><li><strong>选择图片</strong><span>轮廓清晰、背景简单的图片效果最好。</span></li><li><strong>调整格数与颜色</strong><span>格数越多越细致，用豆量也会增加。</span></li><li><strong>修正关键格子</strong><span>选颜色后点格子改色，也可以擦除或吸色。</span></li><li><strong>导出制作</strong><span>PNG 和 SVG 适合看图，CSV 用来备料，JSON 用来下次继续。</span></li></ol><div class="help-note"><strong>色卡提醒</strong><span>内置 32 色是功能演示数据。正式购买材料前，请导入你所使用品牌的合法色卡 CSV，并以实体色卡校准。</span></div></form></dialog>
+  <dialog class="help-dialog" id="help-dialog"><form method="dialog"><div class="dialog-heading"><div><h2>三分钟做出第一张图纸</h2><p>不需要注册，也不会上传你的图片。</p></div><button class="dialog-close" value="cancel" aria-label="关闭">×</button></div><ol class="help-steps"><li><strong>选择图片</strong><span>轮廓清晰、背景简单的图片效果最好。</span></li><li><strong>调整格数与颜色</strong><span>复杂图或人像建议使用 64–96 格；格数越高越清晰，用豆量也会增加。</span></li><li><strong>修正关键格子</strong><span>选颜色后点格子改色，也可以擦除或吸色。</span></li><li><strong>导出制作</strong><span>PNG 适合分享；需要放大或印刷时优先选择不会变糊的 SVG。</span></li></ol><div class="help-note"><strong>色卡提醒</strong><span>内置 32 色是功能演示数据。正式购买材料前，请导入你所使用品牌的合法色卡 CSV，并以实体色卡校准。</span></div></form></dialog>
   <div class="toast" id="toast" role="status" aria-live="polite" hidden></div>`;
 
-const DEFAULT_SETTINGS: PatternSettings = { longEdge: 48, maxColors: 12, fit: 'contain', background: 'keep', backgroundColor: '#FFFFFF', process: 'original' };
+const DEFAULT_SETTINGS: PatternSettings = { longEdge: 48, maxColors: 12, fit: 'contain', background: 'keep', backgroundColor: '#FFFFFF', process: 'sharp' };
 
 export class BeadCraftApp {
   private decoded: DecodedImage | null = null;
@@ -125,7 +125,23 @@ export class BeadCraftApp {
     try { const size = calculateGridSize(this.decoded.width, this.decoded.height, this.settings.longEdge); const imageData = rasterizeImage(this.decoded, size.width, size.height, this.settings.fit, this.settings.background, this.settings.backgroundColor, this.settings.process); this.pattern = createPattern(imageData, this.palette, this.settings); this.history.reset(); this.updateHistoryButtons(); this.drawSource(); this.setBusy(false); this.setView('pattern'); this.render(); this.enableProjectActions(true); this.element<HTMLElement>('#status-text').textContent = `${this.sourceFileName} 已生成`; }
     catch (error) { this.setBusy(false); this.showError(error); }
   }
-  private drawSource(): void { if (!this.decoded) return; const canvas = this.element<HTMLCanvasElement>('#source-canvas'); const scale = Math.min(1, 900 / Math.max(this.decoded.width, this.decoded.height)); canvas.width = Math.round(this.decoded.width * scale); canvas.height = Math.round(this.decoded.height * scale); canvas.style.width = `${Math.round(canvas.width * this.renderOptions.zoom)}px`; canvas.style.height = `${Math.round(canvas.height * this.renderOptions.zoom)}px`; canvas.getContext('2d')?.drawImage(this.decoded.source, 0, 0, canvas.width, canvas.height); }
+  private drawSource(): void {
+    if (!this.decoded) return;
+    const canvas = this.element<HTMLCanvasElement>('#source-canvas');
+    const baseScale = Math.min(1, 900 / Math.max(this.decoded.width, this.decoded.height));
+    const logicalWidth = Math.max(1, Math.round(this.decoded.width * baseScale));
+    const logicalHeight = Math.max(1, Math.round(this.decoded.height * baseScale));
+    const backingScale = calculateCanvasBackingScale(logicalWidth, logicalHeight, this.renderOptions.zoom, window.devicePixelRatio || 1);
+    canvas.width = Math.max(1, Math.round(logicalWidth * backingScale));
+    canvas.height = Math.max(1, Math.round(logicalHeight * backingScale));
+    canvas.style.width = `${Math.round(logicalWidth * this.renderOptions.zoom)}px`;
+    canvas.style.height = `${Math.round(logicalHeight * this.renderOptions.zoom)}px`;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = 'high';
+    ctx.drawImage(this.decoded.source, 0, 0, canvas.width, canvas.height);
+  }
   private render(): void { if (!this.pattern) return; const canvas = this.element<HTMLCanvasElement>('#pattern-canvas'); this.metrics = renderPattern(canvas, this.pattern, this.palette, this.renderOptions); this.drawSource(); canvas.hidden = this.view !== 'pattern'; this.element<HTMLCanvasElement>('#source-canvas').hidden = this.view !== 'original'; this.renderStats(); }
   private renderStats(): void {
     if (!this.pattern) return;
