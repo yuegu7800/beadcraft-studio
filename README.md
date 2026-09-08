@@ -43,6 +43,8 @@ npm run dev
 
 浏览器打开终端显示的本地地址。
 
+Windows 用户也可以双击桌面的 `BeadCraft Studio` 快捷方式。快捷方式调用 `launch-beadcraft.ps1`，在后台启动本地预览服务并打开浏览器。
+
 ## 构建与测试
 
 ```bash
