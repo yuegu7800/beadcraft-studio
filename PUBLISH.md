@@ -1,31 +1,20 @@
-# 发布到 GitHub
+# GitHub 发布与维护
 
-当前环境尚未登录 GitHub，因此 MVP、Git 历史和部署工作流已在本地准备完成，发布没有阻塞项目本身。
+项目已经发布：
 
-## 推荐方式
+- 仓库：https://github.com/yuegu7800/beadcraft-studio
+- 网站：https://yuegu7800.github.io/beadcraft-studio/
+- 部署方式：GitHub Actions + GitHub Pages
+
+## 推送后续更新
 
 在项目目录执行：
 
 ```bash
-gh auth login
-gh repo create beadcraft-studio --public --source=. --remote=origin --push
+git push origin main
 ```
 
-然后打开 GitHub 仓库：
-
-1. 进入 Settings > Pages。
-2. 在 Build and deployment 中把 Source 设为 GitHub Actions。
-3. 回到 Actions，等待 Deploy to GitHub Pages 完成。
-4. 网站地址通常是 `https://<你的用户名>.github.io/beadcraft-studio/`。
-
-## 已有同名仓库时
-
-不要覆盖现有仓库。先确认新仓库地址，再执行：
-
-```bash
-git remote add origin https://github.com/<你的用户名>/<新仓库名>.git
-git push -u origin main
-```
+推送到 `main` 后，`.github/workflows/deploy.yml` 会自动运行测试、构建并更新在线网站。
 
 ## 发布前检查
 

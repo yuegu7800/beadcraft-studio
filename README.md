@@ -2,6 +2,8 @@
 
 一个浏览器本地运行的拼豆图纸编辑器。上传图片后，它会保持原始比例缩放、匹配可用色卡、生成精确二维网格，并让你逐格修正后导出图纸和备料清单。
 
+在线使用：[https://yuegu7800.github.io/beadcraft-studio/](https://yuegu7800.github.io/beadcraft-studio/)
+
 ![BeadCraft Studio 界面预览](docs/screenshot.png)
 
 ## 功能
@@ -78,7 +80,7 @@ docs/         参考分析和界面截图
 
 ## GitHub Pages
 
-`.github/workflows/deploy.yml` 会在 `main` 分支有新提交时构建并发布网站。首次发布需要在仓库 Settings > Pages 中把 Source 设为 GitHub Actions。没有 GitHub 授权时请查看 [PUBLISH.md](PUBLISH.md)。
+`.github/workflows/deploy.yml` 会在 `main` 分支有新提交时自动测试、构建并发布网站。当前公开仓库是 [yuegu7800/beadcraft-studio](https://github.com/yuegu7800/beadcraft-studio)。维护和重新发布步骤见 [PUBLISH.md](PUBLISH.md)。
 
 ## Roadmap
 
